@@ -1995,6 +1995,91 @@ out:
 	return ret;
 }
 
+static int disable_pen_input_device(bool disable)
+{
+	uint8_t buf[8] = { 0 };
+	int32_t ret = 0;
+
+	NVT_LOG("++\n");
+	if (!bTouchIsAwake || !ts) {
+		NVT_LOG("touch suspend, stop set pen state %s",
+			disable ? "DISABLE" : "ENABLE");
+		goto nvt_set_pen_enable_out;
+	}
+
+	msleep(35);
+	disable = (!(ts->pen_input_dev_enable) || ts->pen_is_charge) ? true :
+								       disable;
+
+	//---set xdata index to EVENT BUF ADDR---
+	ret = nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HOST_CMD);
+	if (ret < 0) {
+		NVT_ERR("Set event buffer index fail!\n");
+		goto nvt_set_pen_enable_out;
+	}
+
+	buf[0] = EVENT_MAP_HOST_CMD;
+	buf[1] = 0x7B;
+	buf[2] = !!disable;
+	ret = CTP_SPI_WRITE(ts->client, buf, 3);
+	if (ret < 0) {
+		NVT_ERR("set pen %s failed!\n", disable ? "DISABLE" : "ENABLE");
+		goto nvt_set_pen_enable_out;
+	}
+	NVT_LOG("pen charge state is %s, %s pen input device\n",
+		ts->pen_is_charge ? "ENABLE" : "DISABLE",
+		disable ? "DISABLE" : "ENABLE");
+
+nvt_set_pen_enable_out:
+	NVT_LOG("--\n");
+	return ret;
+}
+
+static int nvt_pen_charge_state_notifier_callback(struct notifier_block *self,
+						  unsigned long event,
+						  void *data)
+{
+	ts->pen_is_charge = !!event;
+	release_pen_event();
+	schedule_work(&ts->pen_charge_state_change_work);
+	return 0;
+}
+
+static void nvt_pen_charge_state_change_work(struct work_struct *work)
+{
+	NVT_LOG("pen charge is %s", ts->pen_is_charge ? "ENABLE" : "DISABLE");
+	disable_pen_input_device(ts->pen_is_charge);
+}
+
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static ssize_t pen_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", ts->pen_input_dev_enable);
+}
+
+static ssize_t pen_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int rc, val;
+
+	rc = kstrtoint(buf, 10, &val);
+	if (rc)
+		return -EINVAL;
+
+	ts->pen_input_dev_enable = !!val;
+	disable_pen_input_device(!ts->pen_input_dev_enable);
+	release_pen_event();
+
+	return count;
+}
+
+static struct tp_common_ops pen_ops = {
+	.show = pen_show,
+	.store = pen_store,
+};
+#endif
+
 #ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
 static struct xiaomi_touch_interface xiaomi_touch_interfaces;
 
@@ -2998,6 +3083,14 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 			NVT_ERR("register pen input device (%s) failed. ret=%d\n", ts->pen_input_dev->name, ret);
 			goto err_pen_input_register_device_failed;
 		}
+
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+		ret = tp_common_set_pen_ops(&pen_ops);
+		if (ret < 0) {
+			NVT_ERR("%s: Failed to create pen node err=%d\n",
+				__func__, ret);
+		}
+#endif
 	} /* if (ts->pen_support) */
 
 	//---set int-pin & request irq---
