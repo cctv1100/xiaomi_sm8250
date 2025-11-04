@@ -58,10 +58,9 @@ jobs:
       uses: actions/cache@v5
       with:
         path: ~/.cache/ccache_mikernel
-        key: kernel-ccache-${{ inputs.device }}-${{ github.run_id }}
+        key: ccache-${{ github.sha }}
         restore-keys: |
-          kernel-ccache-${{ inputs.device }}-
-          kernel-ccache-
+          ccache-
 
     - name: Setup Toolchain (ZyC-Clang 22)
       # 对应 Manual Build 第 2 步
