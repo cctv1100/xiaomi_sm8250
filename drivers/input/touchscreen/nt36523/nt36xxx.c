@@ -153,6 +153,29 @@ static struct tp_common_ops double_tap_ops = {
 };
 #endif
 
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static ssize_t nvt_game_mode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", ts->nvt_game_mode);
+}
+
+static ssize_t nvt_game_mode_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int value;
+
+	kstrtoint(buf, 10, &value);
+	ts->nvt_game_mode = !!value;
+	return count;
+}
+
+static struct tp_common_ops game_mode_ops = {
+	.show = nvt_game_mode_show,
+	.store = nvt_game_mode_store,
+};
+#endif
+
 #ifdef CONFIG_MTK_SPI
 const struct mt_chip_conf spi_ctrdata = {
 	.setuptime = 25,
@@ -3309,6 +3332,10 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		debugfs_create_file("switch_state", 0660, ts->debugfs, ts, &tpdbg_ops);
 		debugfs_create_file("touch_boost", 0660, ts->debugfs, ts, &nvt_touch_test_fops);
 	}
+#endif
+
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	tp_common_set_game_mode_ops(&game_mode_ops);
 #endif
 
 	bTouchIsAwake = 1;

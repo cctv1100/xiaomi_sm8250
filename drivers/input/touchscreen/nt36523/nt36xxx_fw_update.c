@@ -344,6 +344,27 @@ static int32_t update_firmware_request(const char *filename)
 		NVT_LOG("filename was changed to %s\n", filename);
 	}
 
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+	if (ts->nvt_game_mode) {
+		u8 *lockdown = ts->lockdown_info;
+
+	#if defined(CONFIG_MACH_XIAOMI_ELISH)
+		if (lockdown[1] == 0x42) {
+			pr_info("[touch]: cur csot Display panel use 0042 firmware\n");
+			filename = "novatek_nt36523_k81a_fw01_0042.bin";
+		} else if (lockdown[1] == 0x35) {
+			pr_info("[touch]: cur boe Display panel use 0035 firmware\n");
+			filename = "novatek_nt36523_k81a_fw02_0035.bin";
+		}
+	#elif defined(CONFIG_MACH_XIAOMI_ENUMA)
+		if (lockdown[1] == 0x42) {
+			pr_info("[touch]: cur csot Display panel use 0042 firmware\n");
+			filename = "novatek_nt36523_k81_fw01_0042.bin";
+		}
+	#endif
+	}
+#endif
+
 	if (NULL == filename) {
 		return -ENOENT;
 	}
