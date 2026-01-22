@@ -1303,7 +1303,7 @@ struct page *f2fs_find_data_page(struct inode *inode, pgoff_t index,
 	struct address_space *mapping = inode->i_mapping;
 	struct page *page;
 
-	page = find_get_page(mapping, index);
+	page = find_get_page_flags(mapping, index, FGP_ACCESSED);
 	if (page && PageUptodate(page))
 		return page;
 	f2fs_put_page(page, 0);
@@ -3083,7 +3083,7 @@ static int f2fs_write_cache_pages(struct address_space *mapping,
 	pgoff_t end;		/* Inclusive */
 	pgoff_t done_index;
 	int range_whole = 0;
-	xa_mark_t tag;
+	int tag;
 	int nwritten = 0;
 	int submitted = 0;
 	int i;
@@ -4338,13 +4338,13 @@ const struct address_space_operations f2fs_dblock_aops = {
 #endif
 };
 
-void f2fs_clear_page_cache_dirty_tag(struct page *page)
+void f2fs_clear_radix_tree_dirty_tag(struct page *page)
 {
 	struct address_space *mapping = page_mapping(page);
 	unsigned long flags;
 
 	xa_lock_irqsave(&mapping->i_pages, flags);
-	__xa_clear_mark(&mapping->i_pages, page_index(page),
+	radix_tree_tag_clear(&mapping->i_pages, page_index(page),
 						PAGECACHE_TAG_DIRTY);
 	xa_unlock_irqrestore(&mapping->i_pages, flags);
 }
